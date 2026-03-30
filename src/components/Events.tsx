@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Calendar, CalendarPlus, Clock, MapPin } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { parseICS, ParsedEvent } from '@/lib/ical';
-
-interface CalendarEvent extends Omit<ParsedEvent, 'date'> {
+interface CalendarEvent {
+  id: string;
+  title: string;
+  description: string;
   date: Date;
+  allDay: boolean;
 }
 
 
@@ -70,8 +72,7 @@ const Events = () => {
 
     const fetchEvents = async () => {
       try {
-        const fetchUrl = `https://api.cors.lol/?url=${encodeURIComponent(calendarIcsUrl)}`;
-        const response = await fetch(fetchUrl, {
+        const response = await fetch('https://events-backend.libertyloft.deno.net/api/calendar', {
           signal: controller.signal,
         });
 
@@ -79,8 +80,8 @@ const Events = () => {
           throw new Error(`Calendar API returned ${response.status}`);
         }
 
-        const text = await response.text();
-        const parsedEvents = parseICS(text);
+        const data = await response.json() as { events: (Omit<CalendarEvent, 'date'> & { date: string })[] };
+        const parsedEvents = data.events || [];
 
         const now = Date.now();
         const upcomingEvents = parsedEvents
