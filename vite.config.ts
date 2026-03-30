@@ -3,10 +3,7 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 
 const calendarBackendTarget = process.env.CALENDAR_BACKEND_URL ?? "http://localhost:3001";
-const ngrokDomain =
-  process.env.NGROK_DOMAIN ?? "clement-absolutory-emmett.ngrok-free.dev";
 const allowedHosts = [
-  ngrokDomain,
   "libertyloft.cz",
   "www.libertyloft.cz",
   ...(process.env.ALLOWED_HOSTS?.split(",").map((host) => host.trim()) ?? []),
