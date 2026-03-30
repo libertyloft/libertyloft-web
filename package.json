@@ -4,9 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "backend": "node server/calendar-cache-server.mjs",
     "dev": "vite",
-    "dev:full": "sh -c 'node server/calendar-cache-server.mjs & vite'",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",

@@ -1,19 +1,3 @@
-import http from "node:http";
-
-const PORT = Number(process.env.CALENDAR_BACKEND_PORT ?? 3001);
-const ICS_URL =
-  process.env.CALENDAR_ICS_URL ??
-  "https://calendar.google.com/calendar/ical/libertyloft%40proton.me/public/basic.ics";
-const PREFETCH_INTERVAL_MS = Number(process.env.CALENDAR_PREFETCH_INTERVAL_MS ?? 10000);
-const MAX_EVENTS = Number(process.env.CALENDAR_MAX_EVENTS ?? 6);
-
-const cache = {
-  events: [],
-  fetchedAt: null,
-  error: null,
-  lastAttemptAt: null,
-};
-
 const decodeHtmlEntities = (value = "") =>
   value
     .replace(/&nbsp;/gi, " ")
@@ -49,7 +33,7 @@ const sanitizeDescription = (value = "") =>
     .join("\n")
     .trim();
 
-const parseDateValue = (line) => {
+const parseDateValue = (line: string) => {
   const value = line.split(":").slice(1).join(":").trim();
 
   if (!value || value.length < 8) {
@@ -87,7 +71,7 @@ const parseDateValue = (line) => {
   };
 };
 
-const getPropertyValue = (line) => {
+const getPropertyValue = (line: string) => {
   const separatorIndex = line.indexOf(":");
   if (separatorIndex === -1) {
     return "";
@@ -96,8 +80,16 @@ const getPropertyValue = (line) => {
   return line.slice(separatorIndex + 1);
 };
 
-const parseICS = (icsText) => {
-  const events = [];
+export interface ParsedEvent {
+  id: string;
+  title: string;
+  description: string;
+  date: string;
+  allDay: boolean;
+}
+
+export const parseICS = (icsText: string): ParsedEvent[] => {
+  const events: ParsedEvent[] = [];
   const blocks = icsText.split("BEGIN:VEVENT").slice(1);
 
   for (const rawBlock of blocks) {
@@ -177,100 +169,3 @@ const parseICS = (icsText) => {
 
   return events;
 };
-
-const refreshCache = async () => {
-  cache.lastAttemptAt = new Date().toISOString();
-
-  try {
-    const response = await fetch(ICS_URL, {
-      headers: {
-        "user-agent": "libertyloft-calendar-cache/1.0",
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Calendar fetch failed with ${response.status}`);
-    }
-
-    const text = await response.text();
-    if (!text.includes("BEGIN:VCALENDAR")) {
-      throw new Error("Calendar source did not return VCALENDAR data");
-    }
-
-    const now = Date.now();
-    const upcoming = parseICS(text)
-      .filter((event) => new Date(event.date).getTime() >= now)
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-      .slice(0, MAX_EVENTS);
-
-    cache.events = upcoming;
-    cache.fetchedAt = new Date().toISOString();
-    cache.error = null;
-  } catch (error) {
-    cache.error = error instanceof Error ? error.message : "Unknown calendar fetch error";
-  }
-};
-
-const writeJson = (res, statusCode, payload) => {
-  res.writeHead(statusCode, {
-    "content-type": "application/json; charset=utf-8",
-    "access-control-allow-origin": "*",
-    "access-control-allow-methods": "GET, OPTIONS",
-    "access-control-allow-headers": "content-type",
-    "cache-control": "no-store",
-  });
-  res.end(JSON.stringify(payload));
-};
-
-const server = http.createServer((req, res) => {
-  if (!req.url) {
-    writeJson(res, 400, { error: "Missing URL" });
-    return;
-  }
-
-  if (req.method === "OPTIONS") {
-    res.writeHead(204, {
-      "access-control-allow-origin": "*",
-      "access-control-allow-methods": "GET, OPTIONS",
-      "access-control-allow-headers": "content-type",
-    });
-    res.end();
-    return;
-  }
-
-  const url = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
-
-  if (req.method === "GET" && url.pathname === "/api/calendar") {
-    writeJson(res, 200, {
-      events: cache.events,
-      fetchedAt: cache.fetchedAt,
-      lastAttemptAt: cache.lastAttemptAt,
-      stale: Boolean(cache.error),
-      error: cache.error,
-    });
-    return;
-  }
-
-  if (req.method === "GET" && url.pathname === "/api/calendar/health") {
-    writeJson(res, 200, {
-      ok: true,
-      fetchedAt: cache.fetchedAt,
-      lastAttemptAt: cache.lastAttemptAt,
-      stale: Boolean(cache.error),
-      error: cache.error,
-      eventCount: cache.events.length,
-    });
-    return;
-  }
-
-  writeJson(res, 404, { error: "Not found" });
-});
-
-await refreshCache();
-setInterval(refreshCache, PREFETCH_INTERVAL_MS).unref();
-
-server.listen(PORT, () => {
-  console.log(
-    `[calendar-cache] Listening on http://localhost:${PORT} | interval=${PREFETCH_INTERVAL_MS}ms`,
-  );
-});

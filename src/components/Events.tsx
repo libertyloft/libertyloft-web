@@ -1,41 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Calendar, CalendarPlus, Clock, MapPin } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { parseICS, ParsedEvent } from '@/lib/ical';
 
-interface CalendarApiEvent {
-  id: string;
-  title: string;
-  description: string;
-  date: string;
-  allDay: boolean;
-}
-
-interface CalendarEvent extends Omit<CalendarApiEvent, 'date'> {
+interface CalendarEvent extends Omit<ParsedEvent, 'date'> {
   date: Date;
 }
 
-interface CalendarApiResponse {
-  events: CalendarApiEvent[];
-  error: string | null;
-  stale: boolean;
-}
 
-const sanitizeDescription = (value: string) => {
-  return value
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/p>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .join('\n');
-};
+// sanitizeDescription is now handled in the ical parser.
 
 const formatGoogleAllDayDate = (date: Date) => {
   const year = date.getUTCFullYear();
@@ -97,10 +70,8 @@ const Events = () => {
 
     const fetchEvents = async () => {
       try {
-        // Fallback for production: if the backend is not on the same domain,
-        // use an absolute URL (e.g. set VITE_API_URL in GitHub Secrets)
-        const apiBase = import.meta.env.VITE_API_URL || '/api';
-        const response = await fetch(`${apiBase}/calendar`, {
+        const fetchUrl = `https://corsproxy.io/?${encodeURIComponent(calendarIcsUrl)}`;
+        const response = await fetch(fetchUrl, {
           signal: controller.signal,
         });
 
@@ -108,19 +79,21 @@ const Events = () => {
           throw new Error(`Calendar API returned ${response.status}`);
         }
 
-        const payload: CalendarApiResponse = await response.json();
-        const upcomingEvents = (payload.events ?? [])
+        const text = await response.text();
+        const parsedEvents = parseICS(text);
+        
+        const now = Date.now();
+        const upcomingEvents = parsedEvents
           .map((event) => ({
-            ...event,
-            description: sanitizeDescription(event.description),
-            date: new Date(event.date),
+             ...event,
+             date: new Date(event.date),
           }))
-          .filter((event) => !Number.isNaN(event.date.getTime()))
+          .filter((event) => !Number.isNaN(event.date.getTime()) && event.date.getTime() >= now)
           .sort((a, b) => a.date.getTime() - b.date.getTime())
           .slice(0, 6);
 
         setEvents(upcomingEvents);
-        setError(Boolean(payload.error) && upcomingEvents.length === 0);
+        setError(false);
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') {
           return;

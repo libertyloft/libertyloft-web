@@ -2,7 +2,6 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 
-const calendarBackendTarget = process.env.CALENDAR_BACKEND_URL ?? "http://localhost:3001";
 const allowedHosts = [
   "libertyloft.cz",
   "www.libertyloft.cz",
@@ -15,12 +14,6 @@ export default defineConfig(() => ({
     host: "::",
     port: 8080,
     allowedHosts,
-    proxy: {
-      "/api": {
-        target: calendarBackendTarget,
-        changeOrigin: true,
-      },
-    },
     hmr: {
       overlay: false,
     },
@@ -29,12 +22,6 @@ export default defineConfig(() => ({
     host: "::",
     port: 8080,
     allowedHosts,
-    proxy: {
-      "/api": {
-        target: calendarBackendTarget,
-        changeOrigin: true,
-      },
-    },
   },
   plugins: [react()],
   resolve: {
