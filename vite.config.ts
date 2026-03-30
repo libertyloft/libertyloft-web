@@ -14,7 +14,6 @@ const allowedHosts = [
 
 // https://vitejs.dev/config/
 export default defineConfig(() => ({
-  base: "/libertyloft-web/",
   server: {
     host: "::",
     port: 8080,
