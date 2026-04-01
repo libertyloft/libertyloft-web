@@ -29,7 +29,7 @@ const Contact = () => {
                 <ul className="flex gap-4">
                   <li>
                     <a
-                      href={googleMapsUrl}
+                      href={osmUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1.5 text-sm text-ghost-bright hover:text-foreground transition-colors mt-2"
